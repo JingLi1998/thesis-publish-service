@@ -5,12 +5,25 @@ import { google } from "googleapis";
 
 dotenv.config();
 
-const drive = google.drive({
-  version: "v3",
-  auth: process.env.GOOGLE_API_KEY,
+const oauth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  process.env.REDIRECT_URL
+);
+
+const url = oauth2Client.generateAuthUrl({
+  access_type: "offline",
+  scope: "https://www.googleapis.com/auth/drive",
 });
 
-drive.about.get();
+// const drive = google.drive({
+//   version: "v3",
+//   auth: process.env.GOOGLE_API_KEY,
+// });
+
+// drive.about.get();
+
+console.log(url);
 
 const app = express();
 
