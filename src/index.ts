@@ -119,7 +119,7 @@ const main = async () => {
   // });
 
   app.post(`/notifications`, (_req, res) => {
-    console.log(res);
+    console.log("Received Notification");
     res.send("Received");
   });
 
