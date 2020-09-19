@@ -120,6 +120,7 @@ const main = async () => {
 
   app.post(`/notifications`, (_req, res) => {
     console.log(res);
+    res.send("Received");
   });
 
   app.listen(process.env.PORT || 8000, () => {
