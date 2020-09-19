@@ -14,7 +14,10 @@
   "author": "Jing Li",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1"
+    "axios": "^0.20.0",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "googleapis": "^59.0.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.8",
