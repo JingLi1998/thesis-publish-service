@@ -101,28 +101,27 @@ const main = async () => {
   });
 
   const getSheetData = async () => {
-    console.info(`[interval] Starting interval`);
-    const interval = setInterval(async () => {
-      const previousTimeStamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
-      const currentTimestamp = getCurrentTimestamp();
-      if (currentTimestamp - previousTimeStamp > TIMESTAMP_INTERVAL) {
-        console.info(`[interval] Clearing interval`);
-        clearInterval(interval);
-        const spreadsheet = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID,
-          range: "Sheet1",
-        });
-        const rows = spreadsheet.data.values;
+    // console.info(`[interval] Starting interval`);
+    // const interval = setInterval(async () => {
+    // const previousTimeStamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
+    // const currentTimestamp = getCurrentTimestamp();
+    // if (currentTimestamp - previousTimeStamp > TIMESTAMP_INTERVAL) {
+    // console.info(`[interval] Clearing interval`);
+    // clearInterval(interval);
+    setTimeout(async () => {
+      const spreadsheet = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "Sheet1",
+      });
+      const rows = spreadsheet.data.values;
+      console.log(`ID, Timestamp, Latitude, Longitude, Temperature, Humidity`);
+      rows?.slice(1).map((row) => {
         console.log(
-          `ID, Timestamp, Latitude, Longitude, Temperature, Humidity`
+          `${row[0]}, ${row[1]}, ${row[2]}, ${row[3]}, ${row[4]}, ${row[5]}`
         );
-        rows?.slice(1).map((row) => {
-          console.log(
-            `${row[0]}, ${row[1]}, ${row[2]}, ${row[3]}, ${row[4]}, ${row[5]}`
-          );
-        });
-      }
-    }, 1000);
+      });
+      // }
+    }, 10000);
   };
 
   const app = express();
