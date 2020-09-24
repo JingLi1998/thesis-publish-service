@@ -83,7 +83,7 @@ const main = async () => {
         type: "web_hook",
         id: "3",
         resourceId: "RFID Sheet",
-        address: "https://www.trackntrace.network/notifications",
+        address: "https://www.trackntrace.network/publish/notifications",
       },
     });
     console.log(response);
