@@ -126,7 +126,7 @@ const main = async () => {
 
   const app = express();
 
-  app.get(`/`, async (req, res) => {
+  app.get(`/publish`, async (req, res) => {
     if (req.query.code !== undefined) {
       const { tokens } = await oauth2Client.getToken(req.query.code as string);
       if (tokens.access_token && tokens.refresh_token) {
@@ -151,9 +151,9 @@ const main = async () => {
     res.send("Hello World");
   });
 
-  app.get(`/auth`, (_req, res) => res.redirect(url));
+  app.get(`/publish/auth`, (_req, res) => res.redirect(url));
 
-  app.get(`/sheets`, async (_req, res) => {
+  app.get(`/publish/sheets`, async (_req, res) => {
     const currentTimestamp = getCurrentTimestamp();
     const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
     if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
@@ -170,7 +170,7 @@ const main = async () => {
     return res.sendStatus(200);
   });
 
-  app.post(`/notifications`, (_req, res) => {
+  app.post(`/publish/notifications`, (_req, res) => {
     console.log("[notification] Received Notification");
     const currentTimestamp = getCurrentTimestamp();
     const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
