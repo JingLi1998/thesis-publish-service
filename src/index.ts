@@ -83,10 +83,9 @@ const main = async () => {
         type: "web_hook",
         id: "3",
         resourceId: "RFID Sheet",
-        address: "https://www.trackntrace.network/publish/notifications",
+        address: "https://www.trackntrace.network/api/notifications",
       },
     });
-    console.log(response);
     channel.resourceId = response.data.resourceId!;
     channel.expiration = response.data.expiration!;
     await channel.save();
@@ -151,9 +150,9 @@ const main = async () => {
     res.send("Hello World");
   });
 
-  app.get(`/publish/auth`, (_req, res) => res.redirect(url));
+  app.get(`/url`, (_req, res) => res.sendStatus(200).json({ url }));
 
-  app.get(`/publish/sheets`, async (_req, res) => {
+  app.get(`/sheets`, async (_req, res) => {
     const currentTimestamp = getCurrentTimestamp();
     const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
     if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
@@ -170,7 +169,7 @@ const main = async () => {
     return res.sendStatus(200);
   });
 
-  app.post(`/publish/notifications`, (_req, res) => {
+  app.post(`/notifications`, (_req, res) => {
     console.log("[notification] Received Notification");
     const currentTimestamp = getCurrentTimestamp();
     const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
@@ -186,7 +185,6 @@ const main = async () => {
     }
     fs.writeFileSync(TIMESTAMP_FILE_PATH, currentTimestamp.toString());
     return res.sendStatus(200);
-    res.send("Received");
   });
 
   app.listen(process.env.PORT || 8000, () => {
