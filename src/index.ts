@@ -68,31 +68,35 @@ const main = async () => {
     auth: oauth2Client,
   });
 
-  try {
-    const channel = await Channel.findOneOrFail(1);
-    await drive.channels.stop({
-      requestBody: {
-        id: "3",
-        resourceId: channel?.resourceId,
-      },
-    });
-    console.log(`[channel] Channel stopped successfully`);
-    const response = await drive.files.watch({
-      fileId: SPREADSHEET_ID,
-      requestBody: {
-        type: "web_hook",
-        id: "3",
-        resourceId: "RFID Sheet",
-        address: "https://www.trackntrace.network/api/notifications",
-      },
-    });
-    channel.resourceId = response.data.resourceId!;
-    channel.expiration = response.data.expiration!;
-    await channel.save();
-  } catch (error) {
-    console.log(error);
-    console.error("[drive] Notification channel already exists");
-  }
+  (async function createChannel() {
+    try {
+      const channel = await Channel.findOneOrFail(1);
+      await drive.channels.stop({
+        requestBody: {
+          id: "3",
+          resourceId: channel?.resourceId,
+        },
+      });
+      console.log(`[channel] Channel stopped successfully`);
+      const response = await drive.files.watch({
+        fileId: SPREADSHEET_ID,
+        requestBody: {
+          type: "web_hook",
+          id: "3",
+          resourceId: "RFID Sheet",
+          address: "https://www.trackntrace.network/api/notifications",
+          expiration: (getCurrentTimestamp() * 1000 + 86400000).toString(),
+        },
+      });
+      channel.resourceId = response.data.resourceId!;
+      channel.expiration = response.data.expiration!;
+      await channel.save();
+    } catch (error) {
+      console.log(error);
+      console.error("[drive] Notification channel already exists");
+    }
+    setTimeout(createChannel, 86400000);
+  })();
 
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
