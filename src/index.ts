@@ -2,8 +2,12 @@ import dotenv from "dotenv";
 import express from "express";
 import { google } from "googleapis";
 import "reflect-metadata";
-import { createConnection } from "typeorm";
-import { ApiToken } from "./entities/ApiToken";
+import { createConnection, In } from "typeorm";
+import { ApiToken } from "../../database/src/entities/ApiToken";
+import { StockUnit } from "../../database/src/entities/StockUnit";
+import { Batch, BatchStatus } from "../../database/src/entities/Batch";
+import { BatchUnit } from "../../database/src/entities/BatchUnit";
+import { LogisticUnit } from "../../database/src/entities/LogisticUnit";
 import fs from "fs";
 import {
   SPREADSHEET_ID,
@@ -11,7 +15,9 @@ import {
   TIMESTAMP_INTERVAL,
 } from "./constants";
 import { getCurrentTimestamp, getPreviousTimestamp } from "./utils";
-import { Channel } from "./entities/Channel";
+import { Channel } from "../../database/src/entities/Channel";
+import { create } from "domain";
+import { STATUS_CODES } from "http";
 
 const main = async () => {
   dotenv.config();
@@ -22,7 +28,7 @@ const main = async () => {
     url: process.env.ELEPHANT_URL,
     synchronize: true,
     logging: true,
-    entities: ["dist/entities/**/*.js"],
+    entities: ["dist/database/src/entities/**/*.js"],
     cli: {
       entitiesDir: "src/entities",
     },
@@ -126,6 +132,80 @@ const main = async () => {
       // }
     }, 10000);
   };
+
+  const createStockUnit = async (gtin_serial_number: string) => {
+    return await StockUnit.create({ gtin_serial_number }).save();
+  };
+
+  const createBatchUnit = async (gtin_batch_number: string) => {
+    return await BatchUnit.create({ gtin_batch_number }).save();
+  };
+
+  const createLogisticUnit = async (sscc: string) => {
+    return await LogisticUnit.create({ sscc }).save();
+  };
+
+  const aggregateBatch = async (
+    gtin_batch_number: string,
+    gtin_serial_numbers: string[]
+  ) => {
+    const batch_unit = await BatchUnit.findOne(gtin_batch_number);
+    const existing_batch = await Batch.findOne({ where: { batch_unit } });
+
+    if (existing_batch) {
+      return console.log("Batch already exists");
+    }
+
+    const stock_units = await StockUnit.find({
+      where: { gtin_serial_number: In(gtin_serial_numbers) },
+    });
+    const batch = await Batch.create({
+      batch_unit,
+      stock_units,
+      aggregation_date: getCurrentTimestamp(),
+    }).save();
+    console.log(batch);
+    return batch;
+  };
+
+  const disaggregateBatch = async (gtin_batch_number: string) => {
+    const batch_unit = await BatchUnit.findOne(gtin_batch_number);
+    const batch = await Batch.findOne({ where: { batch_unit } });
+    if (!batch_unit || !batch) {
+      return console.log("Batch does not exist");
+    }
+    if (batch.disaggregation_date && batch.status === BatchStatus.COMPLETE) {
+      return console.log("Batch already disaggregated");
+    }
+    batch.disaggregation_date = getCurrentTimestamp();
+    batch.status = BatchStatus.COMPLETE;
+    await batch.save();
+    console.log(batch);
+    return batch;
+  };
+
+  await aggregateBatch("7654321", [
+    "1234567",
+    "1234568",
+    "1234569",
+    "1234570",
+    "1234571",
+    "1234572",
+    "1234573",
+    "1234574",
+    "1234575",
+    "1234576",
+  ]);
+
+  await disaggregateBatch("7654321");
+
+  // const aggregateLogistic = async () => {
+
+  // }
+
+  // const disaggregateLogistic = async () => {
+
+  // }
 
   const app = express();
 

@@ -8,12 +8,13 @@
     "start": "node dist/index.js",
     "build": "tsc",
     "watch": "tsc -w",
-    "dev": "nodemon dist/index.js",
+    "dev": "nodemon dist/publish-service/src/index.js",
     "postinstall": "npm run build"
   },
   "author": "Jing Li",
   "license": "ISC",
   "dependencies": {
+    "@overnightjs/core": "^1.7.5",
     "axios": "^0.20.0",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
