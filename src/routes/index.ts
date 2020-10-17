@@ -2,7 +2,6 @@ import { Router } from "express";
 import * as controller from "../controllers";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import createHttpError from "http-errors";
-import { Transaction } from "../../../database/src/entities/supply-chain";
 
 type Unit = "stock" | "batch" | "logistic" | "transport" | "asset" | "location";
 
@@ -63,3 +62,48 @@ router.post(
     return res.status(201).json({ message: "OK" });
   })
 );
+
+// OLD ROUTES
+// app.get(`/publish`, async (req, res) => {
+//   if (req.query.code !== undefined) {
+//     const { tokens } = await oauth2Client.getToken(req.query.code as string);
+//     if (tokens.access_token && tokens.refresh_token) {
+//       console.log(`[access token]: ${tokens.access_token}`);
+//       console.log(`[refresh token]: ${tokens.refresh_token}`);
+//       const apiToken = await ApiToken.findOne(1);
+//       if (apiToken !== undefined) {
+//         apiToken.accessToken = tokens.access_token;
+//         apiToken.refreshToken = tokens.refresh_token;
+//         await apiToken.save();
+//       } else {
+//         await ApiToken.create({
+//           accessToken: tokens.access_token,
+//           refreshToken: tokens.refresh_token,
+//         }).save();
+//       }
+//       console.log(`[server] Tokens updated in database`);
+//     } else {
+//       console.log(`[server] Something went wrong`);
+//     }
+//   }
+//   res.send("Hello World");
+// });
+
+// app.get(`/url`, (_req, res) => res.sendStatus(200).json({ url }));
+
+// app.get(`/sheets`, async (_req, res) => {
+//   const currentTimestamp = getCurrentTimestamp();
+//   const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
+//   if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
+//     console.log(
+//       `[timestamp] More than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
+//     );
+//     getSheetData();
+//   } else {
+//     console.log(
+//       `[timestamp] Less than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
+//     );
+//   }
+//   fs.writeFileSync(TIMESTAMP_FILE_PATH, currentTimestamp.toString());
+//   return res.sendStatus(200);
+// });

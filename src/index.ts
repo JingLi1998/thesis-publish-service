@@ -1,18 +1,16 @@
 import dotenv from "dotenv";
 import express, { NextFunction, Request, Response } from "express";
-import fs from "fs";
 import { google } from "googleapis";
 import { HttpError } from "http-errors";
 import "reflect-metadata";
 import { createConnection } from "typeorm";
 import { ApiToken, Channel } from "../../database/src/entities/google";
-import {
-  SPREADSHEET_ID,
-  TIMESTAMP_FILE_PATH,
-  TIMESTAMP_INTERVAL,
-} from "./constants";
+import { SPREADSHEET_ID } from "./constants";
+import { handleNotification } from "./controllers";
+import { asyncMiddleware } from "./middleware/asyncMiddleware";
 import { router } from "./routes";
-import { getCurrentTimestamp, getPreviousTimestamp } from "./utils";
+import { getCurrentTimestamp } from "./utils";
+import morgan from "morgan";
 
 const main = async () => {
   dotenv.config();
@@ -99,110 +97,37 @@ const main = async () => {
     setTimeout(createChannel, 86400000);
   })();
 
-  const url = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/drive"],
-  });
-
-  const getSheetData = async () => {
-    // console.info(`[interval] Starting interval`);
-    // const interval = setInterval(async () => {
-    // const previousTimeStamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
-    // const currentTimestamp = getCurrentTimestamp();
-    // if (currentTimestamp - previousTimeStamp > TIMESTAMP_INTERVAL) {
-    // console.info(`[interval] Clearing interval`);
-    // clearInterval(interval);
-    setTimeout(async () => {
-      const spreadsheet = await sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: "Sheet1",
-      });
-      const rows = spreadsheet.data.values;
-      console.log(`ID, Timestamp, Latitude, Longitude, Temperature, Humidity`);
-      rows?.slice(1).map((row) => {
-        console.log(
-          `${row[0]}, ${row[1]}, ${row[2]}, ${row[3]}, ${row[4]}, ${row[5]}`
-        );
-      });
-      // }
-    }, 10000);
-  };
+  // REFRESH URL
+  // const url = oauth2Client.generateAuthUrl({
+  //   access_type: "offline",
+  //   scope: ["https://www.googleapis.com/auth/drive"],
+  // });
 
   const app = express();
 
+  // log http requests
+  app.use(morgan("dev"));
+
+  // json body parser
   app.use(express.json());
 
   app.use("/api", router);
 
-  app.get(`/publish`, async (req, res) => {
-    if (req.query.code !== undefined) {
-      const { tokens } = await oauth2Client.getToken(req.query.code as string);
-      if (tokens.access_token && tokens.refresh_token) {
-        console.log(`[access token]: ${tokens.access_token}`);
-        console.log(`[refresh token]: ${tokens.refresh_token}`);
-        const apiToken = await ApiToken.findOne(1);
-        if (apiToken !== undefined) {
-          apiToken.accessToken = tokens.access_token;
-          apiToken.refreshToken = tokens.refresh_token;
-          await apiToken.save();
-        } else {
-          await ApiToken.create({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-          }).save();
-        }
-        console.log(`[server] Tokens updated in database`);
-      } else {
-        console.log(`[server] Something went wrong`);
-      }
-    }
-    res.send("Hello World");
-  });
+  app.post(
+    `/notifications`,
+    asyncMiddleware(async (_req, res) => {
+      await handleNotification(sheets);
+      return res.status(200).json({ message: "OK" });
+    })
+  );
 
-  app.get(`/url`, (_req, res) => res.sendStatus(200).json({ url }));
-
-  app.get(`/sheets`, async (_req, res) => {
-    const currentTimestamp = getCurrentTimestamp();
-    const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
-    if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
-      console.log(
-        `[timestamp] More than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
-      );
-      getSheetData();
-    } else {
-      console.log(
-        `[timestamp] Less than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
-      );
-    }
-    fs.writeFileSync(TIMESTAMP_FILE_PATH, currentTimestamp.toString());
-    return res.sendStatus(200);
-  });
-
-  app.post(`/notifications`, (_req, res) => {
-    console.log("[notification] Received Notification");
-    const currentTimestamp = getCurrentTimestamp();
-    const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
-    if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
-      console.log(
-        `[timestamp] More than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
-      );
-      getSheetData();
-    } else {
-      console.log(
-        `[timestamp] Less than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
-      );
-    }
-    fs.writeFileSync(TIMESTAMP_FILE_PATH, currentTimestamp.toString());
-    return res.sendStatus(200);
-  });
-
+  // custom error handler
   app.use(
     (error: HttpError, _req: Request, res: Response, _next: NextFunction) => {
       res.status(error.status || 500);
       res.json({
         status: error.status || 500,
         message: error.message,
-        // stack: error.stack,
       });
     }
   );

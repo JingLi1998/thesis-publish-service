@@ -1,6 +1,11 @@
 import createHttpError from "http-errors";
 import { In } from "typeorm";
-import { getCurrentTimestamp, validateInput } from "../utils";
+import fs from "fs";
+import {
+  getCurrentTimestamp,
+  getPreviousTimestamp,
+  validateInput,
+} from "../utils";
 import {
   AssetUnit,
   Batch,
@@ -16,6 +21,54 @@ import {
   LogisticStatus,
   TransportStatus,
 } from "../../../database/src/entities/supply-chain";
+import {
+  SPREADSHEET_ID,
+  TIMESTAMP_FILE_PATH,
+  TIMESTAMP_INTERVAL,
+} from "../constants";
+import { sheets_v4 } from "googleapis";
+
+export const handleNotification = async (sheets: sheets_v4.Sheets) => {
+  console.log("[notification] Received Notification");
+  const currentTimestamp = getCurrentTimestamp();
+  const prevTimestamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
+  if (currentTimestamp - prevTimestamp > TIMESTAMP_INTERVAL) {
+    console.log(
+      `[timestamp] More than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
+    );
+    getSheetData(sheets);
+  } else {
+    console.log(
+      `[timestamp] Less than ${TIMESTAMP_INTERVAL} seconds since last timestamp`
+    );
+  }
+  fs.writeFileSync(TIMESTAMP_FILE_PATH, currentTimestamp.toString());
+  return;
+};
+
+const getSheetData = async (sheets: sheets_v4.Sheets) => {
+  // console.info(`[interval] Starting interval`);
+  // const interval = setInterval(async () => {
+  // const previousTimeStamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
+  // const currentTimestamp = getCurrentTimestamp();
+  // if (currentTimestamp - previousTimeStamp > TIMESTAMP_INTERVAL) {
+  // console.info(`[interval] Clearing interval`);
+  // clearInterval(interval);
+  setTimeout(async () => {
+    const spreadsheet = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "Sheet1",
+    });
+    const rows = spreadsheet.data.values;
+    console.log(`ID, Timestamp, Latitude, Longitude, Temperature, Humidity`);
+    rows?.slice(1).map((row) => {
+      console.log(
+        `${row[0]}, ${row[1]}, ${row[2]}, ${row[3]}, ${row[4]}, ${row[5]}`
+      );
+    });
+    // }
+  }, 10000);
+};
 
 export const createStockUnit = async (gtin_serial_number: string) => {
   const existingStockUnit = await StockUnit.findOne(gtin_serial_number);
@@ -393,7 +446,7 @@ export const createTransaction = async (
   }
 
   // create transaction
-  const transaction = await Transaction.create({
+  return Transaction.create({
     who,
     where,
     when: transaction_data.when,
@@ -403,6 +456,4 @@ export const createTransaction = async (
     what_logistic: what_logistic || [],
     what_transport: what_transport || [],
   }).save();
-  console.log(transaction);
-  return transaction;
 };
