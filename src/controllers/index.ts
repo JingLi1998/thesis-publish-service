@@ -1,32 +1,30 @@
+import fs from "fs";
+import { sheets_v4 } from "googleapis";
 import createHttpError from "http-errors";
 import { In } from "typeorm";
-import fs from "fs";
-import {
-  getCurrentTimestamp,
-  getPreviousTimestamp,
-  validateInput,
-} from "../utils";
 import {
   AssetUnit,
   Batch,
-  BatchUnit,
   BatchStatus,
   Location,
-  LogisticUnit,
-  StockUnit,
-  TransportUnit,
-  Transaction,
   Logistic,
-  Transport,
   LogisticStatus,
+  StockUnit,
+  Transaction,
+  Transport,
   TransportStatus,
+  TransportUnit,
 } from "../../../database/src/entities/supply-chain";
 import {
   SPREADSHEET_ID,
   TIMESTAMP_FILE_PATH,
   TIMESTAMP_INTERVAL,
 } from "../constants";
-import { sheets_v4 } from "googleapis";
+import {
+  getCurrentTimestamp,
+  getPreviousTimestamp,
+  validateInput,
+} from "../utils";
 
 export const handleNotification = async (sheets: sheets_v4.Sheets) => {
   console.log("[notification] Received Notification");
@@ -47,13 +45,6 @@ export const handleNotification = async (sheets: sheets_v4.Sheets) => {
 };
 
 const getSheetData = async (sheets: sheets_v4.Sheets) => {
-  // console.info(`[interval] Starting interval`);
-  // const interval = setInterval(async () => {
-  // const previousTimeStamp = getPreviousTimestamp(TIMESTAMP_FILE_PATH);
-  // const currentTimestamp = getCurrentTimestamp();
-  // if (currentTimestamp - previousTimeStamp > TIMESTAMP_INTERVAL) {
-  // console.info(`[interval] Clearing interval`);
-  // clearInterval(interval);
   setTimeout(async () => {
     const spreadsheet = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -76,22 +67,6 @@ export const createStockUnit = async (gtin_serial_number: string) => {
     throw createHttpError(400, `Stock unit already exists`);
   }
   return await StockUnit.create({ gtin_serial_number }).save();
-};
-
-export const createBatchUnit = async (gtin_batch_number: string) => {
-  const existingBatchUnit = await BatchUnit.findOne(gtin_batch_number);
-  if (existingBatchUnit) {
-    throw createHttpError(400, `Batch unit already exists`);
-  }
-  return await BatchUnit.create({ gtin_batch_number }).save();
-};
-
-export const createLogisticUnit = async (sscc: string) => {
-  const existingLogisticUnit = await LogisticUnit.findOne(sscc);
-  if (existingLogisticUnit) {
-    throw createHttpError(400, `Logistic unit already exists`);
-  }
-  return await LogisticUnit.create({ sscc }).save();
 };
 
 export const createAssetUnit = async (grai: string) => {
@@ -129,35 +104,32 @@ export const aggregateBatch = async (
   }
 
   // confirm batch doesn't exist
-  const existing_batch = await Batch.createQueryBuilder("batch")
-    .leftJoinAndSelect("batch.batch_unit", "batch_unit")
-    .where("batch_unit.gtin_batch_number = :gtin_batch_number", {
-      gtin_batch_number,
-    })
-    .getOne();
+  let existing_batch = await Batch.findOne({ gtin_batch_number });
+  console.log(existing_batch);
   if (existing_batch) {
     throw createHttpError(400, `Batch already exists`);
   }
 
   // find entities
-  const batch_unit_query = BatchUnit.findOne(gtin_batch_number);
-  const stock_units_query = StockUnit.find({
+  const stock_units = await StockUnit.find({
     where: { gtin_serial_number: In(gtin_serial_numbers) },
+    relations: ["batches"],
   });
-  const [batch_unit, stock_units] = await Promise.all([
-    batch_unit_query,
-    stock_units_query,
-  ]).catch((error) => {
-    console.log(error);
-    throw createHttpError(500, "Query Error");
-  });
-  if (!batch_unit || stock_units.length !== gtin_serial_numbers.length) {
+  if (stock_units.length !== gtin_serial_numbers.length) {
     throw createHttpError(400, "Unable to find requested entities");
+  } else if (
+    stock_units.some((stock_unit) =>
+      stock_unit.batches.some(
+        (batch) => batch.status === BatchStatus.IN_PROGRESS
+      )
+    )
+  ) {
+    throw createHttpError(400, "Some entities are already batched");
   }
 
   // aggregate
   return await Batch.create({
-    batch_unit,
+    gtin_batch_number,
     stock_units,
     aggregation_date: getCurrentTimestamp(),
   }).save();
@@ -175,81 +147,83 @@ export const aggregateLogistic = async (
   }
 
   // confirm logistic doesn't exist
-  const existing_logistic = await Logistic.createQueryBuilder("logistic")
-    .leftJoinAndSelect("logistic.logistic_unit", "logistic_unit")
-    .where("logistic_unit.sscc = :sscc", { sscc })
-    .getOne();
+  const existing_logistic = await Logistic.findOne(sscc);
   if (existing_logistic) {
     throw createHttpError(400, `Logistic already exists`);
   }
 
   // find entities
-  const logistic_unit_query = LogisticUnit.findOne(sscc);
   const asset_unit_query = AssetUnit.findOne(grai);
-  const batch_units_query = BatchUnit.find({
+  const batch_query = Batch.find({
     where: { gtin_batch_number: In(gtin_batch_numbers) },
   });
-  const [logistic_unit, asset_unit, batch_units] = await Promise.all([
-    logistic_unit_query,
+  const [asset_unit, batches] = await Promise.all([
     asset_unit_query,
-    batch_units_query,
-  ]).catch((error) => {
-    console.log(error);
-    throw createHttpError(500, "Query Error");
-  });
-  if (
-    !logistic_unit ||
-    !asset_unit ||
-    batch_units.length !== gtin_batch_numbers.length
-  ) {
+    batch_query,
+  ]);
+  if (!asset_unit || batches.length !== gtin_batch_numbers.length) {
     throw createHttpError(400, "Unable to find requested entities");
+  } else if (
+    batches.some((batch) =>
+      batch.logistics.some(
+        (logistic) => logistic.status === LogisticStatus.IN_PROGRESS
+      )
+    )
+  ) {
+    throw createHttpError(400, "Some entities are already batched");
   }
 
   // aggregate
   return await Logistic.create({
-    logistic_unit,
+    sscc,
     asset_unit,
-    batch_units,
+    batches,
     aggregation_date: getCurrentTimestamp(),
   }).save();
 };
 
 export const aggregateTransport = async (
+  id: string,
   giai: string,
   sscc_numbers: string[]
 ) => {
   // validate input
-  const isValid = validateInput([giai, sscc_numbers]);
+  const isValid = validateInput([id, giai, sscc_numbers]);
   if (!isValid) {
     createHttpError(400, "Invalid Input");
   }
 
   // confirm transport doesn't exist
-  const existing_transport = await Transport.createQueryBuilder("transport")
-    .leftJoinAndSelect("transport.transport_unit", "transport_unit")
-    .where("transport.giai = :giai", { giai })
-    .getOne();
+  const existing_transport = await Transport.findOne(id);
   if (existing_transport) {
     throw createHttpError(400, `Transport already exists`);
   }
 
   // find entities
   const transport_unit_query = TransportUnit.findOne(giai);
-  const logistic_units_query = LogisticUnit.find({
+  const logistic_query = Logistic.find({
     where: { sscc: In(sscc_numbers) },
   });
-  const [transport_unit, logistic_units] = await Promise.all([
+  const [transport_unit, logistics] = await Promise.all([
     transport_unit_query,
-    logistic_units_query,
-  ]).catch((error) => {
-    console.log(error);
-    throw createHttpError(400, "Unable to find requested entities");
-  });
+    logistic_query,
+  ]);
+  if (!transport_unit || logistics.length !== sscc_numbers.length) {
+    throw createHttpError(400, "Requested entities not found");
+  } else if (
+    logistics.some((logistic) =>
+      logistic.transports.some(
+        (transport) => transport.status === TransportStatus.IN_PROGRESS
+      )
+    )
+  ) {
+    throw createHttpError(400, "Some entities are already batched");
+  }
 
   // aggregate
   return await Transport.create({
     transport_unit,
-    logistic_units,
+    logistics,
     aggregation_date: getCurrentTimestamp(),
   }).save();
 };
@@ -262,20 +236,17 @@ export const disaggregateBatch = async (gtin_batch_number: string) => {
   }
 
   // confirm batch exists
-  const batch = await Batch.createQueryBuilder("batch")
-    .leftJoinAndSelect("batch.batch_unit", "batch_unit")
-    .where("batch_unit.gtin_batch_number = :gtin_batch_number", {
-      gtin_batch_number,
-    })
-    .getOne();
+  const batch = await Batch.findOne(gtin_batch_number);
   if (!batch) {
     throw createHttpError(400, `Batch does not exist`);
+  } else if (
+    batch.disaggregation_date &&
+    batch.status === BatchStatus.COMPLETE
+  ) {
+    throw createHttpError(`Batch already disaggregated`);
   }
 
   // disaggregate
-  if (batch.disaggregation_date && batch.status === BatchStatus.COMPLETE) {
-    throw createHttpError(`Batch already disaggregated`);
-  }
   batch.disaggregation_date = getCurrentTimestamp();
   batch.status = BatchStatus.COMPLETE;
   return await batch.save();
@@ -289,10 +260,7 @@ export const disaggregateLogistic = async (sscc: string) => {
   }
 
   // confirm logistic exists
-  const logistic = await Logistic.createQueryBuilder("logistic")
-    .leftJoinAndSelect("logistic.logistic_unit", "logistic_unit")
-    .where("logistic_unit.sscc = :sscc", { sscc })
-    .getOne();
+  const logistic = await Logistic.findOne(sscc);
   if (!logistic) {
     throw createHttpError(400, `Logistic does not exist`);
   }
@@ -309,18 +277,15 @@ export const disaggregateLogistic = async (sscc: string) => {
   return await logistic.save();
 };
 
-export const disaggregateTransport = async (giai: string) => {
+export const disaggregateTransport = async (id: string) => {
   // validate input
-  const isValid = validateInput([giai]);
+  const isValid = validateInput([id]);
   if (!isValid) {
     throw createHttpError(400, "Invalid Input");
   }
 
   // confirm transport exists
-  const transport = await Transport.createQueryBuilder("transport")
-    .leftJoinAndSelect("transport.transport_unit", "transport_unit")
-    .where("transport.giai = :giai", { giai })
-    .getOne();
+  const transport = await Transport.findOne(id);
   if (!transport) {
     throw createHttpError(400, `Transport does not exist`);
   }
@@ -420,13 +385,13 @@ export const createTransaction = async (
     where_query,
     what_stock_query,
   ]);
-  const what_batch_query = BatchUnit.find({
+  const what_batch_query = Batch.find({
     where: { gtin_batch_number: In(transaction_data.what_batch || [""]) },
   });
-  const what_logistic_query = LogisticUnit.find({
+  const what_logistic_query = Logistic.find({
     where: { sscc: In(transaction_data.what_logistic || [""]) },
   });
-  const what_transport_query = TransportUnit.find({
+  const what_transport_query = Transport.find({
     where: { giai: In([""]) },
   });
   const [what_batch, what_logistic, what_transport] = await Promise.all([
