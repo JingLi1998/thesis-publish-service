@@ -11,6 +11,7 @@ import { asyncMiddleware } from "./middleware/asyncMiddleware";
 import { router } from "./routes";
 import { getCurrentTimestamp } from "./utils";
 import morgan from "morgan";
+import cors from "cors";
 
 const main = async () => {
   dotenv.config();
@@ -104,6 +105,8 @@ const main = async () => {
   // });
 
   const app = express();
+
+  app.use(cors());
 
   // log http requests
   app.use(morgan("dev"));

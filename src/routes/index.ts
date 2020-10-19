@@ -60,6 +60,46 @@ router.put(
 );
 
 router.post(
+  "/logistic",
+  asyncMiddleware(async (req, res) => {
+    const logistic = await controller.aggregateLogistic(
+      req.body.sscc,
+      req.body.gtin_batch_numbers,
+      req.body.grai
+    );
+    return res.status(201).json({ logistic });
+  })
+);
+
+router.put(
+  "/logistic",
+  asyncMiddleware(async (req, res) => {
+    const logistic = await controller.disaggregateLogistic(req.body.sscc);
+    return res.status(200).json({ logistic });
+  })
+);
+
+router.post(
+  "/transport",
+  asyncMiddleware(async (req, res) => {
+    const transport = await controller.aggregateTransport(
+      req.body.id,
+      req.body.sscc_numbers,
+      req.body.giai
+    );
+    return res.status(201).json({ transport });
+  })
+);
+
+router.put(
+  "/transport",
+  asyncMiddleware(async (req, res) => {
+    const transport = await controller.disaggregateTransport(req.body.id);
+    return res.status(200).json({ transport });
+  })
+);
+
+router.post(
   "/transaction",
   asyncMiddleware(async (req, res) => {
     await controller.createTransaction(req.body.transaction_data);

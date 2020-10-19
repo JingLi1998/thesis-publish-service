@@ -4,6 +4,7 @@ import createHttpError from "http-errors";
 import { In } from "typeorm";
 import {
   AssetUnit,
+  AssetUnitStatus,
   Batch,
   BatchStatus,
   Location,
@@ -14,6 +15,7 @@ import {
   Transport,
   TransportStatus,
   TransportUnit,
+  TransportUnitStatus,
 } from "../../../database/src/entities/supply-chain";
 import {
   SPREADSHEET_ID,
@@ -156,6 +158,7 @@ export const aggregateLogistic = async (
   const asset_unit_query = AssetUnit.findOne(grai);
   const batch_query = Batch.find({
     where: { gtin_batch_number: In(gtin_batch_numbers) },
+    relations: ["logistics"],
   });
   const [asset_unit, batches] = await Promise.all([
     asset_unit_query,
@@ -171,21 +174,27 @@ export const aggregateLogistic = async (
     )
   ) {
     throw createHttpError(400, "Some entities are already batched");
+  } else if (asset_unit.status === AssetUnitStatus.UNAVAILABLE) {
+    throw createHttpError(400, "Asset unit unavailable");
   }
 
   // aggregate
-  return await Logistic.create({
+  asset_unit.status = AssetUnitStatus.UNAVAILABLE;
+  const asset_unit_save_query = asset_unit.save();
+  const logistic_query = Logistic.create({
     sscc,
     asset_unit,
     batches,
     aggregation_date: getCurrentTimestamp(),
   }).save();
+  const [logistic] = await Promise.all([logistic_query, asset_unit_save_query]);
+  return logistic;
 };
 
 export const aggregateTransport = async (
   id: string,
-  giai: string,
-  sscc_numbers: string[]
+  sscc_numbers: string[],
+  giai: string
 ) => {
   // validate input
   const isValid = validateInput([id, giai, sscc_numbers]);
@@ -203,6 +212,7 @@ export const aggregateTransport = async (
   const transport_unit_query = TransportUnit.findOne(giai);
   const logistic_query = Logistic.find({
     where: { sscc: In(sscc_numbers) },
+    relations: ["transports"],
   });
   const [transport_unit, logistics] = await Promise.all([
     transport_unit_query,
@@ -218,14 +228,24 @@ export const aggregateTransport = async (
     )
   ) {
     throw createHttpError(400, "Some entities are already batched");
+  } else if (transport_unit.status === TransportUnitStatus.UNAVAILABLE) {
+    throw createHttpError(400, "Transport unit unavailable");
   }
 
   // aggregate
-  return await Transport.create({
+  transport_unit.status = TransportUnitStatus.UNAVAILABLE;
+  const transport_unit_save_query = transport_unit.save();
+  const transport_query = Transport.create({
+    id,
     transport_unit,
     logistics,
     aggregation_date: getCurrentTimestamp(),
   }).save();
+  const [transport] = await Promise.all([
+    transport_query,
+    transport_unit_save_query,
+  ]);
+  return transport;
 };
 
 export const disaggregateBatch = async (gtin_batch_number: string) => {
@@ -260,11 +280,10 @@ export const disaggregateLogistic = async (sscc: string) => {
   }
 
   // confirm logistic exists
-  const logistic = await Logistic.findOne(sscc);
+  const logistic = await Logistic.findOne(sscc, { relations: ["asset_unit"] });
   if (!logistic) {
     throw createHttpError(400, `Logistic does not exist`);
   }
-
   // disaggregate
   if (
     logistic.disaggregation_date &&
@@ -274,7 +293,11 @@ export const disaggregateLogistic = async (sscc: string) => {
   }
   logistic.disaggregation_date = getCurrentTimestamp();
   logistic.status = LogisticStatus.COMPLETE;
-  return await logistic.save();
+  logistic.asset_unit.status = AssetUnitStatus.AVAILABLE;
+  const logistic_query = logistic.save();
+  const asset_unit_query = logistic.asset_unit.save();
+  await Promise.all([logistic_query, asset_unit_query]);
+  return logistic;
 };
 
 export const disaggregateTransport = async (id: string) => {
@@ -285,7 +308,9 @@ export const disaggregateTransport = async (id: string) => {
   }
 
   // confirm transport exists
-  const transport = await Transport.findOne(id);
+  const transport = await Transport.findOne(id, {
+    relations: ["transport_unit"],
+  });
   if (!transport) {
     throw createHttpError(400, `Transport does not exist`);
   }
@@ -299,7 +324,11 @@ export const disaggregateTransport = async (id: string) => {
   }
   transport.disaggregation_date = getCurrentTimestamp();
   transport.status = TransportStatus.COMPLETE;
-  return await transport.save();
+  transport.transport_unit.status = TransportUnitStatus.AVAILABLE;
+  const transport_query = transport.save();
+  const transport_unit_query = transport.transport_unit.save();
+  await Promise.all([transport_query, transport_unit_query]);
+  return transport;
 };
 
 export type TransactionFields = {

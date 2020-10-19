@@ -15,6 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.20.0",
+    "cors": "^2.8.5",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "googleapis": "^59.0.0",
@@ -26,6 +27,7 @@
     "typeorm": "^0.2.26"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.8",
     "@types/express": "^4.17.8",
     "@types/http-errors": "^1.8.0",
     "@types/morgan": "^1.9.1",
