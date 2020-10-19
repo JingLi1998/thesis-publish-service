@@ -83,7 +83,7 @@ const main = async () => {
           type: "web_hook",
           id: "3",
           resourceId: "RFID Sheet",
-          address: "https://www.trackntrace.network/api/notifications",
+          address: "https://www.trackntrace.network/publish/api/notifications",
           expiration: (getCurrentTimestamp() * 1000 + 86400000).toString(),
         },
       });
@@ -114,7 +114,7 @@ const main = async () => {
   app.use("/api", router);
 
   app.post(
-    `/notifications`,
+    `/api/notifications`,
     asyncMiddleware(async (_req, res) => {
       await handleNotification(sheets);
       return res.status(200).json({ message: "OK" });
