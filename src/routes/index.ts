@@ -5,19 +5,20 @@ import { asyncMiddleware } from "../middleware/asyncMiddleware";
 export const router = Router();
 
 router.post(
-  "/stock-unit",
+  "/product",
   asyncMiddleware(async (req, res) => {
-    const stock_unit = await controller.createStockUnit(
-      req.body.gtin_serial_number
+    const product = await controller.createProduct(
+      req.body.name,
+      req.body.size
     );
-    return res.status(201).json({ stock_unit });
+    return res.status(201).json({ product });
   })
 );
 
 router.post(
   "/asset-unit",
   asyncMiddleware(async (req, res) => {
-    const asset_unit = await controller.createAssetUnit(req.body.grai);
+    const asset_unit = await controller.createAssetUnit(req.body.asset_type);
     return res.status(201).json({ asset_unit });
   })
 );
@@ -25,7 +26,10 @@ router.post(
 router.post(
   "/transport-unit",
   asyncMiddleware(async (req, res) => {
-    const transport_unit = await controller.createTransportUnit(req.body.giai);
+    const transport_unit = await controller.createTransportUnit(
+      req.body.brand,
+      req.body.model
+    );
     return res.status(201).json({ transport_unit });
   })
 );
@@ -33,69 +37,91 @@ router.post(
 router.post(
   "/location",
   asyncMiddleware(async (req, res) => {
-    const location = await controller.createLocation(req.body.gln);
+    const location = await controller.createLocation(
+      req.body.name,
+      req.body.latitude,
+      req.body.longitude
+    );
     return res.status(201).json(location);
   })
 );
 
 router.post(
+  "/stock-unit",
+  asyncMiddleware(async (req, res) => {
+    const { stock_unit, transaction } = await controller.createStockUnit(
+      req.body.product_gtin,
+      req.body.transaction_data
+    );
+    return res.status(201).json({ stock_unit, transaction });
+  })
+);
+
+router.post(
   "/batch",
   asyncMiddleware(async (req, res) => {
-    const batch = await controller.aggregateBatch(
+    const { batch, transaction } = await controller.aggregateBatch(
+      req.body.gtin_serial_numbers,
+      req.body.transaction_data
+    );
+    return res.status(201).json({ batch, transaction });
+  })
+);
+
+router.put(
+  "/batch",
+  asyncMiddleware(async (req, res) => {
+    const { batch, transaction } = await controller.disaggregateBatch(
       req.body.gtin_batch_number,
-      req.body.gtin_serial_numbers
+      req.body.transaction_data
     );
-    return res.status(201).json({ batch });
-  })
-);
-
-router.put(
-  "/batch",
-  asyncMiddleware(async (req, res) => {
-    const batch = await controller.disaggregateBatch(
-      req.body.gtin_batch_number
-    );
-    return res.status(200).json({ batch });
+    return res.status(200).json({ batch, transaction });
   })
 );
 
 router.post(
   "/logistic",
   asyncMiddleware(async (req, res) => {
-    const logistic = await controller.aggregateLogistic(
-      req.body.sscc,
+    const { logistic, transaction } = await controller.aggregateLogistic(
       req.body.gtin_batch_numbers,
-      req.body.grai
+      req.body.grai,
+      req.body.transaction_data
     );
-    return res.status(201).json({ logistic });
+    return res.status(201).json({ logistic, transaction });
   })
 );
 
 router.put(
   "/logistic",
   asyncMiddleware(async (req, res) => {
-    const logistic = await controller.disaggregateLogistic(req.body.sscc);
-    return res.status(200).json({ logistic });
+    const { logistic, transaction } = await controller.disaggregateLogistic(
+      req.body.sscc,
+      req.body.transaction_data
+    );
+    return res.status(200).json({ logistic, transaction });
   })
 );
 
 router.post(
   "/transport",
   asyncMiddleware(async (req, res) => {
-    const transport = await controller.aggregateTransport(
-      req.body.id,
+    const { transport, transaction } = await controller.aggregateTransport(
       req.body.sscc_numbers,
-      req.body.giai
+      req.body.giai,
+      req.body.transaction_data
     );
-    return res.status(201).json({ transport });
+    return res.status(201).json({ transport, transaction });
   })
 );
 
 router.put(
   "/transport",
   asyncMiddleware(async (req, res) => {
-    const transport = await controller.disaggregateTransport(req.body.id);
-    return res.status(200).json({ transport });
+    const { transport, transaction } = await controller.disaggregateTransport(
+      req.body.id,
+      req.body.transaction_data
+    );
+    return res.status(200).json({ transport, transaction });
   })
 );
 
