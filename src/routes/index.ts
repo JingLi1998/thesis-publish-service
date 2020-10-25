@@ -133,6 +133,19 @@ router.post(
   })
 );
 
+router.post(
+  "/resource-policy",
+  asyncMiddleware(async (req, res) => {
+    const resource_policy = await controller.createResourcePolicy(
+      req.body.resource_id,
+      req.body.resource_type,
+      req.body.permission,
+      req.body.user_email
+    );
+    return res.status(201).json({ resource_policy });
+  })
+);
+
 // OLD ROUTES
 // app.get(`/publish`, async (req, res) => {
 //   if (req.query.code !== undefined) {

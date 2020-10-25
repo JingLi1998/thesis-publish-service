@@ -11,6 +11,7 @@ import {
   Logistic,
   LogisticStatus,
   Product,
+  ResourcePolicy,
   StockUnit,
   Transaction,
   Transport,
@@ -505,4 +506,25 @@ export const createTransaction = async (
     what_logistic: what_logistic || [],
     what_transport: what_transport || [],
   }).save();
+};
+
+export const createResourcePolicy = async (
+  resource_id: string,
+  resource_type: string,
+  permission: string,
+  user_email: string
+) => {
+  const existingResourcePolicy = await ResourcePolicy.findOne({
+    where: { resource_id, resource_type, user_email },
+  });
+  if (existingResourcePolicy) {
+    throw createHttpError(400, "Existing resource policy already exists");
+  }
+
+  return await ResourcePolicy.create({
+    user_email,
+    resource_id,
+    resource_type,
+    permission,
+  });
 };
