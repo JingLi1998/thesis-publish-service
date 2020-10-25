@@ -526,5 +526,5 @@ export const createResourcePolicy = async (
     resource_id,
     resource_type,
     permission,
-  });
+  }).save();
 };
